@@ -1,0 +1,11 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+types = { path = "../types/" }
+net-message = { git = "https://github.com/MagicPotatoBean/net-msg-rs" }
+rand = "0.9.0"
+anyhow = "1.0.95"
+rsa = "0.9.7"
