@@ -1,14 +1,24 @@
 use enc::{AesData, RsaData};
-use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey, rand_core, traits::PaddingScheme};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use soft_aes::aes::AES_BLOCK_SIZE;
-use std::{error::Error, fmt::Write, marker::PhantomData};
+use serde::{Deserialize, Serialize};
 pub mod enc;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CPacket {
     Handshake { client_key: rsa::RsaPublicKey },
     Account(CAccount),
+    SendMessage(CSendMessage),
+    RecvMessage(CRecvMessage),
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum CSendMessage {
+    Send {
+        token: RsaData<u128>,
+        message: AesData<OutboundMessage>,
+    },
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum CRecvMessage {
+    FetchNext { token: RsaData<u128> },
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CAccount {
@@ -20,11 +30,9 @@ pub enum CAccount {
         token: RsaData<u128>,
         creds: AesData<Credentials>,
     },
-}
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Credentials {
-    pub username: String,
-    pub pw_digest: String,
+    Logout {
+        token: RsaData<u128>,
+    },
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SPacket {
@@ -33,6 +41,41 @@ pub enum SPacket {
         shared_key: RsaData<Vec<u8>>,
         token: RsaData<u128>,
     },
-    LoginResult(bool),
+    Account(SAccount),
+    SendMessage(SSendMessage),
+    RecvMessage(SRecvMessage),
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum SAccount {
+    Success,
+    AccountExists,
+    IncorrectPassword,
+    InvalidUsername,
     InvalidToken,
+    NotLoggedIn,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum SRecvMessage {
+    NextMsg { message: AesData<InboundMessage> },
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum SSendMessage {
+    Success,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct OutboundMessage {
+    pub recipients: Vec<String>,
+    pub contents: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct InboundMessage {
+    pub sender: String,
+    pub recipients: Vec<String>,
+    pub contents: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Credentials {
+    pub username: String,
+    pub pw_digest: String,
 }

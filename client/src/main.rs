@@ -1,52 +1,79 @@
-use net_message::asymmetric::AsymmetricTcpStream;
-use rsa::{RsaPrivateKey, RsaPublicKey, rand_core};
-use std::{net::TcpStream, time::Duration};
-use types::{
-    CPacket, Credentials, SPacket,
-    enc::{AesData, RsaData},
-};
+use std::{io::Write, net::ToSocketAddrs, sync::mpsc};
+
+use connection::Connection;
+use types::InboundMessage;
+
+mod connection;
 
 fn main() {
-    let client = TcpStream::connect("127.0.0.1:65432").unwrap();
-    client.set_nonblocking(false).unwrap();
-    client
-        .set_read_timeout(Some(Duration::from_secs(60)))
-        .unwrap();
-    let mut stream = AsymmetricTcpStream::<CPacket, SPacket>::new_unchecked(client);
+    print!("Enter username: ");
+    std::io::stdout().flush().unwrap();
+    let mut username = String::default();
+    std::io::stdin().read_line(&mut username).unwrap();
+    username = username
+        .trim()
+        .chars()
+        .filter(|chr| chr.is_alphanumeric())
+        .collect();
 
-    println!("Generating handshake, this may take a while");
-    let priv_key = RsaPrivateKey::new(&mut rand_core::OsRng, 2048).unwrap();
-    let pub_key = priv_key.to_public_key();
+    print!("Enter password: ");
+    std::io::stdout().flush().unwrap();
+    let mut password = String::default();
+    std::io::stdin().read_line(&mut password).unwrap();
+    password = password.trim().to_owned();
 
-    let conn_info = handshake(&mut stream, priv_key, pub_key).unwrap();
-}
-struct ConnectionInfo {
-    token: u128,
-    aes_key: Vec<u8>,
-    server_key: RsaPublicKey,
-}
-fn handshake(
-    stream: &mut AsymmetricTcpStream<CPacket, SPacket>,
-    priv_key: RsaPrivateKey,
-    pub_key: RsaPublicKey,
-) -> Option<ConnectionInfo> {
-    stream
-        .send(CPacket::Handshake {
-            client_key: pub_key,
-        })
-        .unwrap();
-    if let Ok(SPacket::Handshake {
-        server_key,
-        shared_key,
-        token,
-    }) = stream.read()
-    {
-        Some(ConnectionInfo {
-            token: token.get(&priv_key).unwrap(),
-            aes_key: shared_key.get(&priv_key).unwrap(),
-            server_key,
-        })
+    println!("Connecting");
+    let mut conn = Connection::new("127.0.0.1:65432").unwrap();
+    let _ = conn.create_account(username.to_string(), &password);
+    message_reciever("127.0.0.1:65432", username.to_string(), &password);
+    if conn.login(username.to_string(), &password).is_ok() {
+        println!("Logging in");
     } else {
-        None
+        println!("Failed to log in; shutting down.");
+        return;
     }
+
+    loop {
+        print!("Recipients: ");
+        std::io::stdout().flush().unwrap();
+        let mut input = String::default();
+        std::io::stdin().read_line(&mut input).unwrap();
+        let recipients: Vec<_> = input
+            .split(",")
+            .map(|name| name.trim().to_owned())
+            .collect();
+        print!("Message: ");
+        std::io::stdout().flush().unwrap();
+        let mut input = String::default();
+        std::io::stdin().read_line(&mut input).unwrap();
+        input = input.trim().to_owned();
+
+        conn.send_message(recipients, input).unwrap()
+    }
+}
+
+fn message_reciever<A: ToSocketAddrs>(
+    addr: A,
+    username: String,
+    password: &str,
+) -> mpsc::Receiver<InboundMessage> {
+    let mut conn = Connection::new(addr).unwrap();
+    conn.login(username, password).unwrap();
+    let (tx, rx) = mpsc::channel();
+
+    std::thread::spawn(move || {
+        loop {
+            let msg = conn.recv_message().unwrap();
+            let recievers = msg
+                .recipients
+                .clone()
+                .into_iter()
+                .reduce(|acc, new| format!("{acc}, {new}"))
+                .unwrap();
+            println!("\n{} -> {}: {}", msg.sender, recievers, msg.contents);
+            let _ = tx.send(msg);
+        }
+    });
+
+    rx
 }
