@@ -27,7 +27,7 @@ struct TokenData {
 }
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:65432").unwrap();
+    let listener = TcpListener::bind("0.0.0.0:65432").unwrap();
     for client in listener.incoming().flatten() {
         std::thread::spawn(|| {
             client.set_nonblocking(false).unwrap();
