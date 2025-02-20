@@ -23,9 +23,9 @@ fn main() {
     password = password.trim().to_owned();
 
     println!("Connecting");
-    let mut conn = Connection::new("127.0.0.1:65432").unwrap();
+    let mut conn = Connection::new("zoe.soutter.com:65432").unwrap();
     let _ = conn.create_account(username.to_string(), &password);
-    message_reciever("127.0.0.1:65432", username.to_string(), &password);
+    message_reciever("zoe.soutter.com:65432", username.to_string(), &password);
     if conn.login(username.to_string(), &password).is_ok() {
         println!("Logging in");
     } else {
