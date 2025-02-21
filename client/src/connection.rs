@@ -2,11 +2,11 @@ use std::net::{TcpStream, ToSocketAddrs};
 
 use anyhow::{anyhow, bail};
 use net_message::asymmetric::AsymmetricTcpStream;
-use rsa::{RsaPrivateKey, RsaPublicKey, rand_core::OsRng};
+use rsa::{rand_core::OsRng, RsaPrivateKey, RsaPublicKey};
 use thiserror::Error;
 use types::{
-    CPacket, Credentials, InboundMessage, OutboundMessage, SAccount, SPacket,
     enc::{AesData, RsaData},
+    CPacket, Credentials, InboundMessage, OutboundMessage, SAccount, SPacket,
 };
 
 pub struct Connection {
