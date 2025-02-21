@@ -34,49 +34,63 @@ fn main() {
             .child(
                 LinearLayout::vertical()
                     .child(
-                        EditView::new()
-                            .on_submit(|s, text| {
-                                s.focus_name("msg_box").unwrap();
-                            })
-                            .with_name("dest_box"),
+                        LinearLayout::horizontal()
+                            .child(ResizedView::new(
+                                cursive::view::SizeConstraint::Fixed(13),
+                                cursive::view::SizeConstraint::Fixed(1),
+                                TextView::new("Destination: "),
+                            ))
+                            .child(ResizedView::new(
+                                cursive::view::SizeConstraint::AtLeast(20),
+                                cursive::view::SizeConstraint::Fixed(1),
+                                EditView::new()
+                                    .on_submit(|s, text| {
+                                        s.focus_name("msg_box").unwrap();
+                                    })
+                                    .with_name("dest_box"),
+                            )),
                     )
-                    .child(ResizedView::new(
-                        cursive::view::SizeConstraint::AtLeast(20),
-                        cursive::view::SizeConstraint::Free,
-                        EditView::new()
-                            .on_submit(|s, text| {
-                                let recipients = s
-                                    .find_name::<EditView>("dest_box")
-                                    .unwrap()
-                                    .get_content()
-                                    .clone();
-                                s.with_user_data(|dat: &mut AppState| {
-                                    eprintln!("recipients: {:?}", recipients);
-                                    let recipients: Vec<_> = recipients
-                                        .split(",")
-                                        .map(|usr| {
-                                            eprintln!("ATTEMPTING TO ADD USER: {usr:?}");
-                                            let x = usr
-                                                .trim()
-                                                .chars()
-                                                .filter(|chr| chr.is_alphanumeric())
+                    .child(
+                        LinearLayout::horizontal()
+                            .child(ResizedView::new(
+                                cursive::view::SizeConstraint::Fixed(13),
+                                cursive::view::SizeConstraint::Fixed(1),
+                                TextView::new("Message: "),
+                            ))
+                            .child(ResizedView::new(
+                                cursive::view::SizeConstraint::AtLeast(20),
+                                cursive::view::SizeConstraint::Fixed(1),
+                                EditView::new()
+                                    .on_submit(|s, text| {
+                                        let recipients = s
+                                            .find_name::<EditView>("dest_box")
+                                            .unwrap()
+                                            .get_content()
+                                            .clone();
+                                        s.with_user_data(|dat: &mut AppState| {
+                                            let recipients: Vec<_> = recipients
+                                                .split(",")
+                                                .map(|usr| {
+                                                    let x = usr
+                                                        .trim()
+                                                        .chars()
+                                                        .filter(|chr| chr.is_alphanumeric())
+                                                        .collect();
+                                                    x
+                                                })
                                                 .collect();
-                                            eprintln!("ADD USER: {x:?}");
-                                            x
+                                            dat.main_connection
+                                                .as_mut()
+                                                .unwrap()
+                                                .send_message(recipients, text.to_string())
+                                                .unwrap();
                                         })
-                                        .collect();
-                                    eprintln!("SENT MESSAGE: {recipients:?}");
-                                    dat.main_connection
-                                        .as_mut()
-                                        .unwrap()
-                                        .send_message(recipients, text.to_string())
                                         .unwrap();
-                                })
-                                .unwrap();
-                                s.find_name::<EditView>("msg_box").unwrap().set_content("");
-                            })
-                            .with_name("msg_box"),
-                    )),
+                                        s.find_name::<EditView>("msg_box").unwrap().set_content("");
+                                    })
+                                    .with_name("msg_box"),
+                            )),
+                    ),
             ),
     );
     let login_dialog = cursive::views::Dialog::around(
@@ -113,7 +127,6 @@ fn main() {
                         .trim()
                         .to_owned(),
                 );
-                eprintln!("Logged in as {username:?}");
                 s.pop_layer();
                 let AppState {
                     main_connection: main_conn,
@@ -136,22 +149,20 @@ fn main() {
                         let mut conn = recv_conn.unwrap();
                         conn.login(username.to_string(), &password).unwrap();
                         loop {
-                            eprintln!("Started reciever loop");
                             let msg = conn.recv_message().unwrap();
-                            eprintln!("Message incoming: {msg:?}");
+                            eprintln!("{msg:?}");
                             sink.send(Box::new(|s| {
                                 s.call_on_name("message_list", |e: &mut ListView| {
                                     e.add_child(
-                                        "",
-                                        TextView::new(format!(
-                                            "[{}->{}]: {}",
+                                        format!(
+                                            "[{}->{}]:",
                                             msg.sender,
                                             msg.recipients
                                                 .into_iter()
                                                 .reduce(|acc, e| format!("{acc},{e}"))
                                                 .unwrap(),
-                                            msg.contents
-                                        )),
+                                        ),
+                                        TextView::new(msg.contents),
                                     );
                                 })
                                 .unwrap()
