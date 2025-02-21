@@ -150,7 +150,6 @@ fn main() {
                         conn.login(username.to_string(), &password).unwrap();
                         loop {
                             let msg = conn.recv_message().unwrap();
-                            eprintln!("{msg:?}");
                             sink.send(Box::new(|s| {
                                 s.call_on_name("message_list", |e: &mut ListView| {
                                     e.add_child(

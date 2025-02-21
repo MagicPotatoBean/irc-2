@@ -184,7 +184,6 @@ fn send_msg(
         for recipient in &message.recipients {
             match MESSAGE_MAP.write().unwrap().entry(recipient.to_string()) {
                 std::collections::hash_map::Entry::Occupied(mut occupied_entry) => {
-                    println!("{username}->{:?}: {}", message.recipients, message.contents);
                     occupied_entry.get_mut().push_back(InboundMessage {
                         sender: username.clone(),
                         recipients: message.recipients.clone(),
