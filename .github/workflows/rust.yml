@@ -21,7 +21,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: cryptalk
+        name: irc-ubuntu
         path: target/release/client
 
   build-client-windows:
@@ -35,5 +35,5 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: cryptalk.exe
+        name: irc-windows
         path: target/release/client.exe
