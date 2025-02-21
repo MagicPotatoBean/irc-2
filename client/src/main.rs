@@ -3,10 +3,8 @@ use cursive::{
     event::Event,
     theme::Palette,
     view::Nameable,
-    views::{
-        self, Button, EditView, HideableView, LinearLayout, ListView, ResizedView, TextArea,
-        TextView,
-    },
+    views::{self, Button, EditView, LinearLayout, ListView, ResizedView, TextView},
+    Cursive,
 };
 
 mod connection;
@@ -102,7 +100,13 @@ fn main() {
                     .child(ResizedView::new(
                         cursive::view::SizeConstraint::AtLeast(8),
                         cursive::view::SizeConstraint::Fixed(1),
-                        TextArea::new().with_name("un_dialog"),
+                        EditView::new()
+                            .on_submit(|s, text| {
+                                if !text.is_empty() {
+                                    let _ = s.focus_name("pw_dialog");
+                                }
+                            })
+                            .with_name("un_dialog"),
                     )),
             )
             .child(
@@ -111,66 +115,16 @@ fn main() {
                     .child(ResizedView::new(
                         cursive::view::SizeConstraint::AtLeast(8),
                         cursive::view::SizeConstraint::Fixed(1),
-                        TextArea::new().with_name("pw_dialog"),
+                        EditView::new()
+                            .on_submit(|s, text| {
+                                if !text.is_empty() {
+                                    login(s);
+                                }
+                            })
+                            .with_name("pw_dialog"),
                     )),
             )
-            .child(Button::new("Confirm", |s| {
-                let (username, password) = (
-                    s.find_name::<TextArea>("un_dialog")
-                        .unwrap()
-                        .get_content()
-                        .trim()
-                        .to_owned(),
-                    s.find_name::<TextArea>("pw_dialog")
-                        .unwrap()
-                        .get_content()
-                        .trim()
-                        .to_owned(),
-                );
-                s.pop_layer();
-                let AppState {
-                    main_connection: main_conn,
-                    secondary_connection: recv_conn,
-                    ..
-                } = s.take_user_data().unwrap();
-                let mut main_conn = main_conn.unwrap();
-                let _ = main_conn.create_account(username.clone(), &password);
-                let sink = s.cb_sink().to_owned();
-
-                main_conn.login(username.to_string(), &password).unwrap();
-                s.set_user_data(AppState {
-                    main_connection: Some(main_conn),
-                    ..Default::default()
-                });
-
-                std::thread::Builder::new()
-                    .name("Message handler".to_string())
-                    .spawn(move || {
-                        let mut conn = recv_conn.unwrap();
-                        conn.login(username.to_string(), &password).unwrap();
-                        loop {
-                            let msg = conn.recv_message().unwrap();
-                            sink.send(Box::new(|s| {
-                                s.call_on_name("message_list", |e: &mut ListView| {
-                                    e.add_child(
-                                        format!(
-                                            "[{}->{}]:",
-                                            msg.sender,
-                                            msg.recipients
-                                                .into_iter()
-                                                .reduce(|acc, e| format!("{acc},{e}"))
-                                                .unwrap(),
-                                        ),
-                                        TextView::new(msg.contents),
-                                    );
-                                })
-                                .unwrap()
-                            }))
-                            .unwrap()
-                        }
-                    })
-                    .unwrap();
-            })),
+            .child(Button::new("Confirm", login).with_name("submit_btn")),
     )
     .with_name("login_dialog");
     c.add_layer(main_app);
@@ -182,4 +136,64 @@ fn main() {
 struct AppState {
     main_connection: Option<Connection>,
     secondary_connection: Option<Connection>,
+}
+fn login(s: &mut Cursive) {
+    let (username, password) = (
+        s.find_name::<EditView>("un_dialog")
+            .unwrap()
+            .get_content()
+            .trim()
+            .to_owned(),
+        s.find_name::<EditView>("pw_dialog")
+            .unwrap()
+            .get_content()
+            .trim()
+            .to_owned(),
+    );
+    if username.is_empty() || password.is_empty() {
+        return;
+    }
+    s.pop_layer();
+    let AppState {
+        main_connection: main_conn,
+        secondary_connection: recv_conn,
+        ..
+    } = s.take_user_data().unwrap();
+    let mut main_conn = main_conn.unwrap();
+    let _ = main_conn.create_account(username.clone(), &password);
+    let sink = s.cb_sink().to_owned();
+
+    main_conn.login(username.to_string(), &password).unwrap();
+    s.set_user_data(AppState {
+        main_connection: Some(main_conn),
+        ..Default::default()
+    });
+
+    std::thread::Builder::new()
+        .name("Message handler".to_string())
+        .spawn(move || {
+            let mut conn = recv_conn.unwrap();
+            conn.login(username.to_string(), &password).unwrap();
+            loop {
+                let msg = conn.recv_message().unwrap();
+                sink.send(Box::new(|s| {
+                    s.call_on_name("message_list", |e: &mut ListView| {
+                        e.add_child(
+                            format!(
+                                "[{}->{}]:",
+                                msg.sender,
+                                msg.recipients
+                                    .into_iter()
+                                    .reduce(|acc, e| format!("{acc},{e}"))
+                                    .unwrap(),
+                            ),
+                            TextView::new(msg.contents),
+                        );
+                    })
+                    .unwrap()
+                }))
+                .unwrap()
+            }
+        })
+        .unwrap();
 }
