@@ -1,6 +1,6 @@
 use net_message::asymmetric::AsymmetricTcpStream;
 use rand::Rng;
-use rsa::{RsaPrivateKey, RsaPublicKey, rand_core};
+use rsa::{rand_core, RsaPrivateKey, RsaPublicKey};
 use std::{
     collections::{HashMap, VecDeque},
     net::TcpListener,
@@ -8,8 +8,8 @@ use std::{
     time::Duration,
 };
 use types::{
-    CPacket, Credentials, InboundMessage, OutboundMessage, SAccount, SPacket, SSendMessage,
     enc::{AesData, RsaData},
+    CPacket, Credentials, InboundMessage, OutboundMessage, SAccount, SPacket, SSendMessage,
 };
 
 static TOKEN_MAP: LazyLock<RwLock<HashMap<u128, TokenData>>> =
@@ -184,6 +184,7 @@ fn send_msg(
         for recipient in &message.recipients {
             match MESSAGE_MAP.write().unwrap().entry(recipient.to_string()) {
                 std::collections::hash_map::Entry::Occupied(mut occupied_entry) => {
+                    println!("{username}->{:?}: {}", message.recipients, message.contents);
                     occupied_entry.get_mut().push_back(InboundMessage {
                         sender: username.clone(),
                         recipients: message.recipients.clone(),
